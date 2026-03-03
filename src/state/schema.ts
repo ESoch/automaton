@@ -5,7 +5,7 @@
  * The database IS the automaton's memory.
  */
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 12;
 
 export const CREATE_TABLES = `
   -- Schema version tracking
@@ -671,3 +671,15 @@ export const MIGRATION_V10 = `
   CREATE INDEX idx_knowledge_category ON knowledge_store(category);
   CREATE INDEX idx_knowledge_key ON knowledge_store(key);
 `;
+
+// Re-export V11 from team module
+export { MIGRATION_V11 } from "../team/team-schema.js";
+
+// Re-export V12 from team learning module
+export {
+  MIGRATION_V12,
+  MIGRATION_V12_ALTER_OUTCOME_SCORE,
+  MIGRATION_V12_ALTER_OUTCOME_NOTES,
+  MIGRATION_V12_ALTER_REVENUE,
+  MIGRATION_V12_ALTER_ITERATIONS,
+} from "../team/learning-schema.js";

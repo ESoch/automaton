@@ -139,6 +139,50 @@ export async function spawnChild(
     );
     await childConway.writeFile("/root/.automaton/genesis.json", genesisJson);
 
+    // Write role config if the child has a role assigned (team module)
+    try {
+      const childRole = db.raw
+        .prepare("SELECT role FROM children WHERE id = ?")
+        .get(childId) as { role: string | null } | undefined;
+      if (childRole?.role && childRole.role !== "generalist") {
+        // Try to load role config from the config/roles directory
+        const { loadRoleConfig } = await import("../team/role-config.js");
+        try {
+          const roleConfig = loadRoleConfig(childRole.role);
+          await childConway.writeFile(
+            "/root/.automaton/role-config.json",
+            JSON.stringify(roleConfig, null, 2),
+          );
+        } catch {
+          // Role config file not found — continue without it
+        }
+      }
+    } catch {
+      // team module tables may not exist yet — continue without role config
+    }
+
+    // Install team-protocol and strategy-reference skills if available
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const skillPaths = [
+        path.resolve(process.cwd(), "skills", "team-protocol.md"),
+        path.resolve(process.cwd(), "skills", "strategy-reference.md"),
+      ];
+      for (const skillPath of skillPaths) {
+        if (fs.existsSync(skillPath)) {
+          const skillContent = fs.readFileSync(skillPath, "utf-8");
+          const skillName = path.basename(skillPath);
+          await childConway.writeFile(
+            `/root/.automaton/skills/${skillName}`,
+            skillContent,
+          );
+        }
+      }
+    } catch {
+      // Skills not found — continue without them
+    }
+
     // Propagate constitution with hash verification
     try {
       await propagateConstitution(childConway, sandbox.id, db.raw);
