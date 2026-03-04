@@ -598,7 +598,7 @@ export async function runAgentLoop(
 
       // ── Inference Call (via router when available) ──
       const survivalTier = getSurvivalTier(financial.creditsCents);
-      log(config, `[THINK] Routing inference (tier: ${survivalTier}, model: ${inference.getDefaultModel()})...`);
+      log(config, `[THINK] Routing inference (tier: ${survivalTier})...`);
 
       const inferenceTools = toolsToInferenceFormat(tools);
       const routerResult = await inferenceRouter.route(
@@ -612,6 +612,8 @@ export async function runAgentLoop(
         },
         (msgs, opts) => inference.chat(msgs, { ...opts, tools: inferenceTools }),
       );
+
+      log(config, `[THINK] Routed to model: ${routerResult.model} (cost: ${routerResult.costCents}c, tokens: ${routerResult.inputTokens}+${routerResult.outputTokens})`);
 
       // Build a compatible response for the rest of the loop
       const response = {
@@ -900,6 +902,11 @@ export async function runAgentLoop(
     } catch (err: any) {
       consecutiveErrors++;
       log(config, `[ERROR] Turn failed: ${err.message}`);
+
+      // Exponential backoff before retry
+      const backoffMs = Math.min(1000 * Math.pow(2, consecutiveErrors - 1), 15_000);
+      log(config, `[ERROR] Backing off ${backoffMs}ms before retry (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS})`);
+      await new Promise(resolve => setTimeout(resolve, backoffMs));
 
       // Handle inbox message state on turn failure:
       // Messages that have retries remaining go back to 'received';

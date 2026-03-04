@@ -23,7 +23,17 @@ import { sanitizeToolResult, sanitizeInput } from "./injection-defense.js";
 import { createLogger } from "../observability/logger.js";
 import { createTeamTools } from "../team/team-tools.js";
 
+import path from "path";
+
 const logger = createLogger("tools");
+
+/** Resolve ~ to HOME in file paths (shell does not expand ~ in programmatic args). */
+function resolveHome(p: string): string {
+  if (p.startsWith("~")) {
+    return path.join(process.env.HOME || "/root", p.slice(1));
+  }
+  return p;
+}
 
 // Tools whose results come from external sources and need sanitization
 const EXTERNAL_SOURCE_TOOLS = new Set([
@@ -1176,7 +1186,7 @@ Model: ${ctx.inference.getDefaultModel()}
       },
       execute: async (args, ctx) => {
         const { gitStatus } = await import("../git/tools.js");
-        const repoPath = (args.path as string) || "~/.automaton";
+        const repoPath = resolveHome((args.path as string) || "~/.automaton");
         const status = await gitStatus(ctx.conway, repoPath);
         return `Branch: ${status.branch}\nStaged: ${status.staged.length}\nModified: ${status.modified.length}\nUntracked: ${status.untracked.length}\nClean: ${status.clean}`;
       },
@@ -1198,7 +1208,7 @@ Model: ${ctx.inference.getDefaultModel()}
       },
       execute: async (args, ctx) => {
         const { gitDiff } = await import("../git/tools.js");
-        const repoPath = (args.path as string) || "~/.automaton";
+        const repoPath = resolveHome((args.path as string) || "~/.automaton");
         return await gitDiff(
           ctx.conway,
           repoPath,
@@ -1228,7 +1238,7 @@ Model: ${ctx.inference.getDefaultModel()}
       },
       execute: async (args, ctx) => {
         const { gitCommit } = await import("../git/tools.js");
-        const repoPath = (args.path as string) || "~/.automaton";
+        const repoPath = resolveHome((args.path as string) || "~/.automaton");
         return await gitCommit(
           ctx.conway,
           repoPath,
@@ -1257,7 +1267,7 @@ Model: ${ctx.inference.getDefaultModel()}
       },
       execute: async (args, ctx) => {
         const { gitLog } = await import("../git/tools.js");
-        const repoPath = (args.path as string) || "~/.automaton";
+        const repoPath = resolveHome((args.path as string) || "~/.automaton");
         const entries = await gitLog(
           ctx.conway,
           repoPath,
