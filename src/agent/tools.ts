@@ -22,6 +22,7 @@ import type { PolicyEngine } from "./policy-engine.js";
 import { sanitizeToolResult, sanitizeInput } from "./injection-defense.js";
 import { createLogger } from "../observability/logger.js";
 import { createTeamTools } from "../team/team-tools.js";
+import { createPublishTools } from "../team/publish-tools.js";
 
 import path from "path";
 
@@ -40,6 +41,9 @@ const EXTERNAL_SOURCE_TOOLS = new Set([
   "exec",
   "web_fetch",
   "check_social_inbox",
+  "publish_x",
+  "publish_threads",
+  "publish_linkedin",
 ]);
 
 // ─── Self-Preservation Guard ───────────────────────────────────
@@ -3143,6 +3147,9 @@ Model: ${ctx.inference.getDefaultModel()}
 
     // === Team Module Tools ===
     ...createTeamTools(),
+
+    // === Publishing Tools ===
+    ...createPublishTools(),
   ];
 }
 

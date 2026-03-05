@@ -30,4 +30,5 @@ export {
 } from "./role-config.js";
 export type { RoleConfig } from "./role-config.js";
 export { createTeamTools } from "./team-tools.js";
+export { createPublishTools } from "./publish-tools.js";
 export { TREASURY_PRESETS } from "./treasury-presets.js";
