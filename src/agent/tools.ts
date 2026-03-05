@@ -23,6 +23,7 @@ import { sanitizeToolResult, sanitizeInput } from "./injection-defense.js";
 import { createLogger } from "../observability/logger.js";
 import { createTeamTools } from "../team/team-tools.js";
 import { createPublishTools } from "../team/publish-tools.js";
+import { createPrTools } from "../team/pr-tools.js";
 
 import path from "path";
 
@@ -3150,6 +3151,9 @@ Model: ${ctx.inference.getDefaultModel()}
 
     // === Publishing Tools ===
     ...createPublishTools(),
+
+    // === PR Tools ===
+    ...createPrTools(),
   ];
 }
 

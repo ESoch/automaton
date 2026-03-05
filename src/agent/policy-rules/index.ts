@@ -15,6 +15,7 @@ import { createAuthorityRules } from "./authority.js";
 import { createRateLimitRules } from "./rate-limits.js";
 import { createRoleRestrictionRules } from "./role-restrictions.js";
 import { createPlimsollGuardRules } from "./plimsoll-guard.js";
+import { createPrSafetyRules } from "./pr-safety.js";
 
 /**
  * Create the default set of policy rules.
@@ -32,5 +33,6 @@ export function createDefaultRules(
     ...createAuthorityRules(),
     ...createRateLimitRules(),
     ...createRoleRestrictionRules(),
+    ...createPrSafetyRules(),
   ];
 }
