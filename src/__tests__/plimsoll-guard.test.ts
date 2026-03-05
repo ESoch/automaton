@@ -5,7 +5,7 @@
  * capital velocity (spend-rate limiter), entropy guard (key exfiltration).
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type {
   AutomatonTool,
   PolicyRule,
@@ -160,22 +160,43 @@ describe("plimsoll transaction guard", () => {
   });
 
   describe("capital velocity (spend-rate limiter)", () => {
+    let sharedDb: ReturnType<typeof createTestDb>;
+    let sharedContext: ToolContext;
+
+    beforeEach(() => {
+      sharedDb = createTestDb();
+      sharedContext = {
+        identity: createTestIdentity(),
+        config: createTestConfig(),
+        db: sharedDb,
+        conway: new MockConwayClient(),
+        inference: new MockInferenceClient(),
+      };
+    });
+
+    afterEach(() => {
+      sharedDb.close();
+    });
+
+    function velocityRequest(args: Record<string, unknown>, agentId = "default-agent"): PolicyRequest {
+      sharedContext.identity.sandboxId = agentId;
+      return {
+        tool: mockTool("transfer_credits"),
+        args,
+        context: sharedContext,
+        turnContext: { inputSource: "heartbeat", turnToolCallCount: 1, sessionSpend: mockSpendTracker() },
+      };
+    }
+
     it("allows small spends", () => {
       const rule = findRule(rules, "plimsoll.capital_velocity");
-      const req = createRequest(
-        mockTool("transfer_credits"),
-        { amount: 100 },
-        "agent-small",
-      );
+      const req = velocityRequest({ amount: 100 }, "agent-small");
       expect(rule.evaluate(req)).toBeNull();
     });
 
     it("allows zero-amount calls", () => {
       const rule = findRule(rules, "plimsoll.capital_velocity");
-      const req = createRequest(
-        mockTool("transfer_credits"),
-        { amount: 0 },
-      );
+      const req = velocityRequest({ amount: 0 });
       expect(rule.evaluate(req)).toBeNull();
     });
 
@@ -184,21 +205,11 @@ describe("plimsoll transaction guard", () => {
 
       // 49 calls of $10 each = $490 cumulative
       for (let i = 0; i < 49; i++) {
-        const req = createRequest(
-          mockTool("transfer_credits"),
-          { amount: 1000 }, // 1000 cents = $10
-          "agent-spender",
-        );
-        rule.evaluate(req);
+        rule.evaluate(velocityRequest({ amount: 1000 }, "agent-spender"));
       }
 
       // $20 more takes total to $510 — should be denied
-      const req = createRequest(
-        mockTool("transfer_credits"),
-        { amount: 2000 },
-        "agent-spender",
-      );
-      const result = rule.evaluate(req);
+      const result = rule.evaluate(velocityRequest({ amount: 2000 }, "agent-spender"));
       expect(result).not.toBeNull();
       expect(result!.action).toBe("deny");
       expect(result!.reasonCode).toBe("PLIMSOLL_VELOCITY_BREACH");
@@ -209,22 +220,11 @@ describe("plimsoll transaction guard", () => {
 
       // Agent-A spends $490
       for (let i = 0; i < 49; i++) {
-        rule.evaluate(
-          createRequest(
-            mockTool("transfer_credits"),
-            { amount: 1000 },
-            "agent-A",
-          ),
-        );
+        rule.evaluate(velocityRequest({ amount: 1000 }, "agent-A"));
       }
 
       // Agent-B should NOT be blocked
-      const req = createRequest(
-        mockTool("transfer_credits"),
-        { amount: 1000 },
-        "agent-B",
-      );
-      expect(rule.evaluate(req)).toBeNull();
+      expect(rule.evaluate(velocityRequest({ amount: 1000 }, "agent-B"))).toBeNull();
     });
   });
 

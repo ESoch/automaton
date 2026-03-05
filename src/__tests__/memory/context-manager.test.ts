@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, afterAll } from "vitest";
 import {
   ContextManager,
   createTokenCounter,
@@ -67,25 +67,37 @@ describe("createTokenCounter", () => {
     expect(counter.cache.size).toBe(sizeAfterFirst);
   });
 
-  it("LRU cache limits to 10000 entries", () => {
-    const counter = createTokenCounter();
+  describe("LRU cache behavior", () => {
+    // Mock tiktoken to use the fast Math.ceil(len/3.5) fallback path.
+    // These tests validate LRU eviction, not tokenizer accuracy.
+    vi.mock("tiktoken", () => ({
+      getEncoding: () => { throw new Error("test: use fallback"); },
+    }));
 
-    for (let i = 0; i < 10_050; i += 1) {
-      counter.countTokens(`msg-${i}`);
-    }
+    afterAll(() => {
+      vi.restoreAllMocks();
+    });
 
-    expect(counter.cache.size).toBeLessThanOrEqual(10_000);
-  });
+    it("LRU cache limits to 10000 entries", () => {
+      const counter = createTokenCounter();
 
-  it("LRU behavior evicts oldest keys first", () => {
-    const counter = createTokenCounter();
+      for (let i = 0; i < 10_050; i += 1) {
+        counter.countTokens(`msg-${i}`);
+      }
 
-    for (let i = 0; i < 10_005; i += 1) {
-      counter.countTokens(`evict-${i}`);
-    }
+      expect(counter.cache.size).toBeLessThanOrEqual(10_000);
+    });
 
-    expect(counter.cache.has("default::evict-0")).toBe(false);
-    expect(counter.cache.has("default::evict-10004")).toBe(true);
+    it("LRU behavior evicts oldest keys first", () => {
+      const counter = createTokenCounter();
+
+      for (let i = 0; i < 10_005; i += 1) {
+        counter.countTokens(`evict-${i}`);
+      }
+
+      expect(counter.cache.has("default::evict-0")).toBe(false);
+      expect(counter.cache.has("default::evict-10004")).toBe(true);
+    });
   });
 });
 

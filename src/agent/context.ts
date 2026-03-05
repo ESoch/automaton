@@ -32,10 +32,15 @@ export { DEFAULT_TOKEN_BUDGET };
 /**
  * Estimate token count from text length.
  * Conservative estimate: ~4 characters per token for English text.
+ * For strings over 2K chars, skips BPE encoding (js-tiktoken is O(n²) on
+ * repetitive text and becomes prohibitively slow above a few thousand chars).
  */
+const BPE_SIZE_LIMIT = 2_000;
+
 export function estimateTokens(text: string): number {
   const content = text ?? "";
   const legacyEstimate = Math.ceil(content.length / 4);
+  if (content.length > BPE_SIZE_LIMIT) return legacyEstimate;
   try {
     if (!tokenCounter) {
       tokenCounter = createTokenCounter();

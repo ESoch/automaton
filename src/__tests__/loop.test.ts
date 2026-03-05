@@ -18,6 +18,21 @@ import {
 } from "./mocks.js";
 import type { AutomatonDatabase, AgentTurn, AgentState } from "../types.js";
 
+// Mock blockchain RPC calls to avoid real network requests (Base mainnet)
+vi.mock("../registry/erc8004.js", () => ({
+  queryAgent: vi.fn().mockResolvedValue(null),
+  getTotalAgents: vi.fn().mockResolvedValue(0),
+  getRegisteredAgentsByEvents: vi.fn().mockResolvedValue([]),
+  registerAgent: vi.fn(),
+  leaveFeedback: vi.fn(),
+}));
+
+vi.mock("../conway/x402.js", () => ({
+  getUsdcBalance: vi.fn().mockResolvedValue(0),
+  createWalletClient: vi.fn(),
+  isX402Supported: vi.fn().mockResolvedValue(false),
+}));
+
 describe("Agent Loop", () => {
   let db: AutomatonDatabase;
   let conway: MockConwayClient;
@@ -29,9 +44,16 @@ describe("Agent Loop", () => {
     conway = new MockConwayClient();
     identity = createTestIdentity();
     config = createTestConfig();
+
+    // Eliminate backoff delays in all tests
+    const realSetTimeout = globalThis.setTimeout;
+    vi.stubGlobal("setTimeout", (fn: (...args: any[]) => void, _delay?: number, ...args: any[]) => {
+      return realSetTimeout(fn, 0, ...args);
+    });
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     db.close();
   });
 
@@ -367,6 +389,9 @@ describe("Agent Loop", () => {
   });
 
   it("cycle limit sets 2-minute sleep duration", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-05T12:00:00Z"));
+
     const lowLimitConfig = createTestConfig({ maxTurnsPerCycle: 1 });
 
     const inference = new MockInferenceClient([
@@ -383,10 +408,12 @@ describe("Agent Loop", () => {
 
     const sleepUntil = db.getKV("sleep_until");
     expect(sleepUntil).toBeDefined();
-    // Sleep should be ~2 minutes (120_000ms) from now
+    // Sleep should be ~2 minutes (120_000ms) from the frozen now
     const sleepMs = new Date(sleepUntil!).getTime() - Date.now();
     expect(sleepMs).toBeGreaterThan(100_000); // at least ~100s
     expect(sleepMs).toBeLessThan(150_000); // at most ~150s
+
+    vi.useRealTimers();
   });
 
   it("respects custom maxTurnsPerCycle from config", async () => {

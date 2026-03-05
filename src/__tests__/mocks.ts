@@ -30,6 +30,9 @@ import path from "path";
 import os from "os";
 import fs from "fs";
 
+// Monotonic counter for unique mock IDs (avoids collisions when called in tight loops)
+let _mockIdCounter = 0;
+
 // ─── Mock Inference Client ──────────────────────────────────────
 
 export class MockInferenceClient implements InferenceClient {
@@ -67,8 +70,9 @@ export class MockInferenceClient implements InferenceClient {
 }
 
 export function noToolResponse(text = ""): InferenceResponse {
+  const uid = ++_mockIdCounter;
   return {
-    id: `resp_${Date.now()}`,
+    id: `resp_${uid}`,
     model: "mock-model",
     message: { role: "assistant", content: text },
     usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
@@ -80,9 +84,9 @@ export function toolCallResponse(
   toolCalls: { name: string; arguments: Record<string, unknown> }[],
   text = "",
 ): InferenceResponse {
-  const now = Date.now();
+  const uid = ++_mockIdCounter;
   const mapped = toolCalls.map((tc, i) => ({
-    id: `call_${i}_${now}`,
+    id: `call_${i}_${uid}`,
     type: "function" as const,
     function: {
       name: tc.name,
@@ -91,7 +95,7 @@ export function toolCallResponse(
   }));
 
   return {
-    id: `resp_${now}`,
+    id: `resp_tc_${uid}`,
     model: "mock-model",
     message: {
       role: "assistant",

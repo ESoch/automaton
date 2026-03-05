@@ -131,7 +131,7 @@ describe("DurableScheduler", () => {
   describe("task timeout", () => {
     it("times out tasks that exceed their timeout", async () => {
       const neverFinish: HeartbeatTaskFn = async () => {
-        await new Promise((resolve) => setTimeout(resolve, 60_000));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         return { shouldWake: false };
       };
 
