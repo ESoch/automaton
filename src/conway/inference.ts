@@ -16,6 +16,9 @@ import type {
 } from "../types.js";
 import { ResilientHttpClient } from "./http-client.js";
 
+export { AnthropicBatchClient } from "./anthropic-batch.js";
+export type { AnthropicBatchRequest, AnthropicBatchResult, BatchStatus } from "./anthropic-batch.js";
+
 const INFERENCE_TIMEOUT_MS = 60_000;
 
 interface InferenceClientOptions {
@@ -273,19 +276,30 @@ async function chatViaAnthropic(params: {
   };
 
   if (transformed.system) {
-    body.system = transformed.system;
+    body.system = [{
+      type: "text",
+      text: transformed.system,
+      cache_control: { type: "ephemeral" },
+    }];
   }
 
-  if (params.temperature !== undefined) {
+  const isOpus = /opus/i.test(params.model);
+  if (isOpus) {
+    body.thinking = { type: "enabled", budget_tokens: 10000 };
+  } else if (params.temperature !== undefined) {
     body.temperature = params.temperature;
   }
 
   if (params.tools && params.tools.length > 0) {
-    body.tools = params.tools.map((tool) => ({
+    const mappedTools = params.tools.map((tool) => ({
       name: tool.function.name,
       description: tool.function.description,
       input_schema: tool.function.parameters,
     }));
+    if (mappedTools.length > 0) {
+      (mappedTools[mappedTools.length - 1] as any).cache_control = { type: "ephemeral" };
+    }
+    body.tools = mappedTools;
     body.tool_choice = { type: "auto" };
   }
 
@@ -309,6 +323,7 @@ async function chatViaAnthropic(params: {
   const content = Array.isArray(data.content) ? data.content : [];
   const textBlocks = content.filter((c: any) => c?.type === "text");
   const toolUseBlocks = content.filter((c: any) => c?.type === "tool_use");
+  // Thinking blocks are filtered out — they inform quality but shouldn't appear in output
 
   const toolCalls: InferenceToolCall[] | undefined =
     toolUseBlocks.length > 0
@@ -333,6 +348,8 @@ async function chatViaAnthropic(params: {
 
   const promptTokens = data.usage?.input_tokens || 0;
   const completionTokens = data.usage?.output_tokens || 0;
+  const cacheReadTokens = data.usage?.cache_read_input_tokens || 0;
+  const cacheCreationTokens = data.usage?.cache_creation_input_tokens || 0;
   const usage: TokenUsage = {
     promptTokens,
     completionTokens,
@@ -350,6 +367,8 @@ async function chatViaAnthropic(params: {
     toolCalls,
     usage,
     finishReason: normalizeAnthropicFinishReason(data.stop_reason),
+    cacheReadTokens,
+    cacheCreationTokens,
   };
 }
 

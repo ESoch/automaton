@@ -321,6 +321,10 @@ export interface InferenceResponse {
   toolCalls?: InferenceToolCall[];
   usage: TokenUsage;
   finishReason: string;
+  /** Tokens read from Anthropic prompt cache (0 if no cache hit) */
+  cacheReadTokens?: number;
+  /** Tokens written to Anthropic prompt cache (0 if no cache creation) */
+  cacheCreationTokens?: number;
 }
 
 export interface InferenceOptions {
@@ -1165,6 +1169,8 @@ export interface InferenceRequest {
   turnId?: string;
   maxTokens?: number; // override
   tools?: unknown[];
+  /** When true, request is eligible for Anthropic Batch API (50% cost reduction, async) */
+  batchEligible?: boolean;
 }
 
 export interface InferenceResult {

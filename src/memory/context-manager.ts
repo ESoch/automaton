@@ -133,7 +133,7 @@ export function createTokenCounter(): TokenCounter {
   let encoder: Tiktoken | null = null;
 
   try {
-    encoder = getEncoding("cl100k_base");
+    encoder = getEncoding("o200k_base");
   } catch {
     encoder = null;
   }

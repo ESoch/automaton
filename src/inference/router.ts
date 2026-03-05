@@ -153,6 +153,7 @@ export class InferenceRouter {
     );
 
     // 8. Record cost
+    const cacheReadTokens = response.cacheReadTokens || 0;
     this.budget.recordCost({
       sessionId,
       turnId: turnId || null,
@@ -164,7 +165,7 @@ export class InferenceRouter {
       latencyMs,
       tier,
       taskType,
-      cacheHit: false,
+      cacheHit: cacheReadTokens > 0,
     });
 
     // 9. Build result
