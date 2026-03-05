@@ -227,19 +227,19 @@ describe("InferenceRouter", () => {
     it("returns correct model for normal/agent_turn", () => {
       const model = router.selectModel("normal", "agent_turn");
       expect(model).not.toBeNull();
-      expect(model!.modelId).toBe("gpt-5.2");
+      expect(model!.modelId).toBe("claude-sonnet-4-6");
     });
 
     it("returns cheaper model for low_compute tier", () => {
       const model = router.selectModel("low_compute", "agent_turn");
       expect(model).not.toBeNull();
-      expect(model!.modelId).toBe("gpt-5-mini");
+      expect(model!.modelId).toBe("claude-haiku-4-5");
     });
 
     it("returns minimal model for critical tier", () => {
       const model = router.selectModel("critical", "agent_turn");
       expect(model).not.toBeNull();
-      expect(model!.modelId).toBe("gpt-5-mini");
+      expect(model!.modelId).toBe("claude-haiku-4-5");
     });
 
     it("returns null for dead tier", () => {
@@ -253,10 +253,10 @@ describe("InferenceRouter", () => {
     });
 
     it("skips disabled models and picks next candidate", () => {
-      registry.setEnabled("gpt-5.2", false);
+      registry.setEnabled("claude-sonnet-4-6", false);
       const model = router.selectModel("normal", "agent_turn");
       expect(model).not.toBeNull();
-      expect(model!.modelId).toBe("gpt-5-mini");
+      expect(model!.modelId).toBe("claude-haiku-4-5");
     });
   });
 
@@ -279,17 +279,17 @@ describe("InferenceRouter", () => {
       );
 
       expect(result.content).toBe("Hello!");
-      expect(result.model).toBe("gpt-5.2");
+      expect(result.model).toBe("claude-sonnet-4-6");
       expect(result.finishReason).toBe("stop");
 
       // Verify cost was recorded
       const costs = inferenceGetSessionCosts(db, "test-session");
       expect(costs.length).toBe(1);
-      expect(costs[0].model).toBe("gpt-5.2");
+      expect(costs[0].model).toBe("claude-sonnet-4-6");
     });
 
     it("computes actualCostCents accurately from token usage", async () => {
-      // gpt-5.2 has costPer1kInput=20, costPer1kOutput=80 (hundredths of cents)
+      // claude-sonnet-4-6 has costPer1kInput=30, costPer1kOutput=150 (hundredths of cents)
       // Formula: Math.ceil((input/1000)*costPer1kInput/100 + (output/1000)*costPer1kOutput/100)
       const mockChat = async (_msgs: any[], _opts: any) => ({
         message: { content: "result", role: "assistant" },
@@ -308,7 +308,7 @@ describe("InferenceRouter", () => {
       );
 
       // Verify cost is computed correctly
-      // (1000/1000)*300/100 + (500/1000)*1500/100 = 3 + 7.5 = 10.5 => ceil = 11
+      // (1000/1000)*30/100 + (500/1000)*150/100 = 0.3 + 0.75 = 1.05 => ceil = 2
       expect(result.costCents).toBeGreaterThan(0);
       expect(typeof result.costCents).toBe("number");
       expect(Number.isInteger(result.costCents)).toBe(true);
@@ -734,11 +734,17 @@ describe("Task Timeouts", () => {
 describe("Static Model Baseline", () => {
   it("contains expected models", () => {
     const ids = STATIC_MODEL_BASELINE.map((m) => m.modelId);
+    // GPT models
     expect(ids).toContain("gpt-4.1");
     expect(ids).toContain("gpt-4.1-mini");
     expect(ids).toContain("gpt-4.1-nano");
     expect(ids).toContain("gpt-5.2");
     expect(ids).toContain("gpt-5.3");
+    // Claude models
+    expect(ids).toContain("claude-sonnet-4-6");
+    expect(ids).toContain("claude-haiku-4-5");
+    expect(ids).toContain("claude-haiku-4-5-20251001");
+    expect(ids).toContain("claude-opus-4-6");
   });
 
   it("all models have positive pricing", () => {
@@ -954,12 +960,84 @@ describe("Inference DB Helpers", () => {
 
 describe("DEFAULT_MODEL_STRATEGY_CONFIG", () => {
   it("has sensible defaults", () => {
-    expect(DEFAULT_MODEL_STRATEGY_CONFIG.inferenceModel).toBe("gpt-5.2");
-    expect(DEFAULT_MODEL_STRATEGY_CONFIG.lowComputeModel).toBe("gpt-5-mini");
-    expect(DEFAULT_MODEL_STRATEGY_CONFIG.criticalModel).toBe("gpt-5-mini");
+    expect(DEFAULT_MODEL_STRATEGY_CONFIG.inferenceModel).toBe("claude-sonnet-4-6");
+    expect(DEFAULT_MODEL_STRATEGY_CONFIG.lowComputeModel).toBe("claude-haiku-4-5");
+    expect(DEFAULT_MODEL_STRATEGY_CONFIG.criticalModel).toBe("claude-haiku-4-5");
     expect(DEFAULT_MODEL_STRATEGY_CONFIG.enableModelFallback).toBe(true);
     expect(DEFAULT_MODEL_STRATEGY_CONFIG.hourlyBudgetCents).toBe(0); // no limit
     expect(DEFAULT_MODEL_STRATEGY_CONFIG.sessionBudgetCents).toBe(0); // no limit
     expect(DEFAULT_MODEL_STRATEGY_CONFIG.perCallCeilingCents).toBe(0); // no limit
+  });
+});
+
+// ─── Claude Models in Baseline Tests ──────────────────────────────
+
+describe("Claude models in STATIC_MODEL_BASELINE", () => {
+  it("claude-sonnet-4-6 has correct provider and capabilities", () => {
+    const model = STATIC_MODEL_BASELINE.find((m) => m.modelId === "claude-sonnet-4-6");
+    expect(model).toBeDefined();
+    expect(model!.provider).toBe("anthropic");
+    expect(model!.parameterStyle).toBe("max_tokens");
+    expect(model!.supportsTools).toBe(true);
+    expect(model!.supportsVision).toBe(true);
+    expect(model!.tierMinimum).toBe("normal");
+  });
+
+  it("claude-haiku-4-5 has correct provider and capabilities", () => {
+    const model = STATIC_MODEL_BASELINE.find((m) => m.modelId === "claude-haiku-4-5");
+    expect(model).toBeDefined();
+    expect(model!.provider).toBe("anthropic");
+    expect(model!.parameterStyle).toBe("max_tokens");
+    expect(model!.supportsTools).toBe(true);
+    expect(model!.tierMinimum).toBe("low_compute");
+  });
+
+  it("claude-opus-4-6 has correct provider and capabilities", () => {
+    const model = STATIC_MODEL_BASELINE.find((m) => m.modelId === "claude-opus-4-6");
+    expect(model).toBeDefined();
+    expect(model!.provider).toBe("anthropic");
+    expect(model!.parameterStyle).toBe("max_tokens");
+    expect(model!.supportsTools).toBe(true);
+    expect(model!.tierMinimum).toBe("high");
+  });
+
+  it("claude-haiku-4-5-20251001 alias exists with same pricing as claude-haiku-4-5", () => {
+    const alias = STATIC_MODEL_BASELINE.find((m) => m.modelId === "claude-haiku-4-5-20251001");
+    const base = STATIC_MODEL_BASELINE.find((m) => m.modelId === "claude-haiku-4-5");
+    expect(alias).toBeDefined();
+    expect(base).toBeDefined();
+    expect(alias!.costPer1kInput).toBe(base!.costPer1kInput);
+    expect(alias!.costPer1kOutput).toBe(base!.costPer1kOutput);
+  });
+});
+
+// ─── Routing Matrix Integrity Tests ───────────────────────────────
+
+describe("Routing matrix integrity", () => {
+  it("all candidates in routing matrix exist in STATIC_MODEL_BASELINE", () => {
+    const baselineIds = new Set(STATIC_MODEL_BASELINE.map((m) => m.modelId));
+
+    for (const [tier, taskMap] of Object.entries(DEFAULT_ROUTING_MATRIX)) {
+      for (const [taskType, pref] of Object.entries(taskMap as Record<string, { candidates: string[] }>)) {
+        for (const candidate of pref.candidates) {
+          expect(baselineIds.has(candidate)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("normal tier routes to claude-sonnet-4-6 for agent_turn", () => {
+    const candidates = DEFAULT_ROUTING_MATRIX.normal.agent_turn.candidates;
+    expect(candidates[0]).toBe("claude-sonnet-4-6");
+  });
+
+  it("low_compute tier routes to claude-haiku-4-5 for agent_turn", () => {
+    const candidates = DEFAULT_ROUTING_MATRIX.low_compute.agent_turn.candidates;
+    expect(candidates[0]).toBe("claude-haiku-4-5");
+  });
+
+  it("high tier routes to claude-opus-4-6 as fallback for agent_turn", () => {
+    const candidates = DEFAULT_ROUTING_MATRIX.high.agent_turn.candidates;
+    expect(candidates).toContain("claude-opus-4-6");
   });
 });
